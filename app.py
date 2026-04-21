@@ -18,8 +18,12 @@ st.set_page_config(
 st.markdown("""
     <style>
     .main .block-container { padding-top: 2rem; }
-    .stMetric { background-color: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #e9ecef; }
-    [data-theme="dark"] .stMetric { background-color: #1e1e1e; border: 1px solid #333; }
+    [data-testid="stMetric"] { 
+        background-color: var(--secondary-background-color); 
+        padding: 15px; 
+        border-radius: 10px; 
+        border: 1px solid rgba(128, 128, 128, 0.2); 
+    }
     h1, h2, h3 { font-family: 'Helvetica Neue', sans-serif; }
     </style>
 """, unsafe_allow_html=True)
@@ -43,33 +47,31 @@ def load_and_train_model():
 
     # Melt the dataframe into a long format: [Hour, Day, Congestion]
     melted = df.melt(id_vars='Hour', var_name='Day', value_name='Congestion')
-
+    
     # Feature Engineering: Categorical Dummy Variables for Days (dropping Mon to avoid dummy variable trap)
     days = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     for day in days:
         melted[day] = (melted['Day'] == day).astype(int)
-
+        
     # Feature Engineering: Fourier Harmonics for cyclical daily time
     melted['sin1'] = np.sin(2 * np.pi * melted['Hour'] / 24)
     melted['cos1'] = np.cos(2 * np.pi * melted['Hour'] / 24)
     melted['sin2'] = np.sin(4 * np.pi * melted['Hour'] / 24)
     melted['cos2'] = np.cos(4 * np.pi * melted['Hour'] / 24)
-
+    
     # Construct Design Matrix X and Target Vector y
     feature_cols = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'sin1', 'cos1', 'sin2', 'cos2']
-    X = np.column_stack((np.ones(len(melted)), melted[feature_cols].values))  # Adding Intercept
+    X = np.column_stack((np.ones(len(melted)), melted[feature_cols].values)) # Adding Intercept
     y = melted['Congestion'].values
-
+    
     # Ordinary Least Squares (OLS) via pure matrix algebra
     X_T = X.T
     beta = np.linalg.inv(X_T @ X) @ X_T @ y
-
+    
     return df, beta, days
-
 
 # Load data and train
 raw_df, beta_vector, day_columns = load_and_train_model()
-
 
 def predict_congestion(day, hour_float):
     """Predicts congestion percentage at a continuous time using the trained beta vector."""
@@ -77,14 +79,14 @@ def predict_congestion(day, hour_float):
     cos1 = np.cos(2 * np.pi * hour_float / 24)
     sin2 = np.sin(4 * np.pi * hour_float / 24)
     cos2 = np.cos(4 * np.pi * hour_float / 24)
-
-    x_vec = [1]  # Intercept
+    
+    x_vec = [1] # Intercept
     for d in day_columns:
         x_vec.append(1 if day == d else 0)
     x_vec.extend([sin1, cos1, sin2, cos2])
-
+    
     prediction = np.dot(x_vec, beta_vector)
-    return max(0, prediction)  # Congestion cannot be logically negative
+    return max(0, prediction) # Congestion cannot be logically negative
 
 
 # ==========================================
@@ -101,7 +103,6 @@ def float_to_time_str(h_float):
     t = time(hour=hours % 24, minute=minutes)
     return t.strftime("%I:%M %p")
 
-
 def time_to_float(t):
     """Converts a datetime.time object to a float."""
     return t.hour + t.minute / 60.0
@@ -111,22 +112,23 @@ def time_to_float(t):
 # USER INTERFACE (SIDEBAR)
 # ==========================================
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3204/3204094.png", width=60)  # Placeholder aesthetic icon
+    st.image("https://cdn-icons-png.flaticon.com/512/3204/3204094.png", width=60) # Placeholder aesthetic icon
     st.title("Commute Parameters")
     st.markdown("Set your route details below to calculate the mathematical optimum.")
-
+    
     selected_day = st.selectbox("Day of the Week", ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
-
-    target_time_input = st.time_input("Target Arrival Time", time(9, 0))  # Default 9:00 AM
+    
+    target_time_input = st.time_input("Target Arrival Time", time(9, 0)) # Default 9:00 AM
     target_time_float = time_to_float(target_time_input)
-
+    
     distance_km = st.number_input("Route Distance (km)", min_value=1.0, max_value=200.0, value=40.0, step=1.0)
-
+    
     st.markdown("---")
     st.markdown("### 🧮 Model Constraints")
     st.latex(r"T_{base} = d \text{ (mins)}")
     st.latex(r"D(t) = T_{base} + \left(\frac{C(t)}{100} \times 1.5 \times T_{base}\right)")
     st.latex(r"t_{dep} + \frac{D(t)}{60} \le t_{target}")
+
 
 # ==========================================
 # OPTIMIZATION ALGORITHM
@@ -135,17 +137,17 @@ with st.sidebar:
 time_steps = np.arange(0, 24, 0.05)
 results = []
 
-T_base = distance_km  # Assuming 60km/h baseline speed
+T_base = distance_km # Assuming 60km/h baseline speed
 
 for t_dep in time_steps:
     c = predict_congestion(selected_day, t_dep)
-
+    
     # Calculate drive time in minutes
     drive_time_mins = T_base + (c / 100.0) * 1.5 * T_base
-
+    
     # Calculate arrival time in hours
     t_arr = t_dep + (drive_time_mins / 60.0)
-
+    
     if t_arr <= target_time_float:
         results.append({
             't_dep': t_dep,
@@ -158,31 +160,28 @@ for t_dep in time_steps:
 # MAIN DASHBOARD AREA
 # ==========================================
 st.title("Sharjah Traffic Prescriptive Model")
-st.markdown(
-    "This dashboard maps predictive traffic percentages to schedule the **mathematically optimal departure time**, bypassing black-box libraries using pure Least Squares Approximation.")
+st.markdown("This dashboard maps predictive traffic percentages to schedule the **mathematically optimal departure time**, bypassing black-box libraries using pure Least Squares Approximation.")
 
 if not results:
-    st.error(
-        "⚠️ Impossible to reach the destination by the target time on the same day. Try an earlier departure or later arrival time.")
+    st.error("⚠️ Impossible to reach the destination by the target time on the same day. Try an earlier departure or later arrival time.")
 else:
     # Find the optimal departure (Minimizes drive time)
     results_df = pd.DataFrame(results)
     optimal = results_df.loc[results_df['drive_time'].idxmin()]
-
+    
     # Find the latest possible departure (Maximizes departure time while satisfying constraint)
     latest = results_df.loc[results_df['t_dep'].idxmax()]
 
     # Metric Cards
     st.markdown("### 🏆 Prescriptive Outcomes")
     col1, col2, col3, col4 = st.columns(4)
-
+    
     with col1:
         st.metric("Optimal Departure", float_to_time_str(optimal['t_dep']), "Shortest Drive")
     with col2:
         st.metric("Estimated Arrival", float_to_time_str(optimal['t_arr']))
     with col3:
-        st.metric("Total Drive Time", f"{int(optimal['drive_time'])} mins",
-                  f"+{int(optimal['drive_time'] - T_base)} mins delay", delta_color="inverse")
+        st.metric("Total Drive Time", f"{int(optimal['drive_time'])} mins", f"+{int(optimal['drive_time'] - T_base)} mins delay", delta_color="inverse")
     with col4:
         st.metric("Congestion at Departure", f"{optimal['congestion']:.1f}%")
 
@@ -190,13 +189,13 @@ else:
     # VISUALIZATION (PLOTLY)
     # ==========================================
     st.markdown("### 📈 Continuous Traffic Curve & Feasible Region")
-
+    
     # Generate continuous curve for the plot
     plot_x = np.arange(0, 24, 0.1)
     plot_y = [predict_congestion(selected_day, x) for x in plot_x]
-
+    
     fig = go.Figure()
-
+    
     # Add predicted congestion curve
     fig.add_trace(go.Scatter(
         x=plot_x, y=plot_y,
@@ -206,7 +205,7 @@ else:
         fill='tozeroy',
         fillcolor='rgba(65, 105, 225, 0.1)'
     ))
-
+    
     # Add raw data points for verification
     raw_day_data = raw_df[['Hour', selected_day]]
     fig.add_trace(go.Scatter(
@@ -227,7 +226,7 @@ else:
     ))
 
     # Add Target Arrival Time Boundary
-    fig.add_vline(x=target_time_float, line_width=2, line_dash="dash", line_color="red",
+    fig.add_vline(x=target_time_float, line_width=2, line_dash="dash", line_color="red", 
                   annotation_text="Deadline", annotation_position="top left")
 
     # Format Axes
@@ -237,12 +236,12 @@ else:
             tickvals=list(range(0, 25, 2)),
             ticktext=[float_to_time_str(h) for h in range(0, 25, 2)]
         ),
-        yaxis=dict(title="Congestion (%)", range=[0, max(100, max(plot_y) + 10)]),
+        yaxis=dict(title="Congestion (%)", range=[0, max(100, max(plot_y)+10)]),
         hovermode="x unified",
         margin=dict(l=20, r=20, t=30, b=20),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
-
+    
     st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
@@ -252,20 +251,20 @@ with st.expander("📚 View Mathematical Reasoning (MATH 101 Documentation)"):
     st.markdown("""
     ### 1. The Overdetermined System
     When mapping traffic congestion percentages ($y$) against time ($X$), we have hundreds of hourly observations but only a few temporal variables. This creates a system of linear equations:
-
+    
     $$X\\beta = y$$
-
+    
     Because $X$ is a tall, rectangular matrix, the system is **inconsistent**. To find the line of best fit, we multiply both sides by $X^T$ to solve the normal equations:
-
+    
     $$\\beta = (X^T X)^{-1} X^T y$$
-
+    
     ### 2. Feature Engineering
     We engineered a design matrix using:
     * **Categorical Interaction Terms:** One-hot encoding for days of the week.
     * **Fourier Harmonics:** Cyclical mappings using $\\sin(\\frac{2\\pi t}{24})$ and $\\cos(\\frac{2\\pi t}{24})$ to model the continuous 24-hour cycle of a day.
-
+    
     ### 3. Constrained Optimization
     The objective is to find the departure time $t_{dep}$ that minimizes drive time $D(t_{dep})$, subject to the constraint that final arrival time must be less than or equal to $t_{target}$.
-
+    
     $$t_{dep} + \\frac{D(t_{dep})}{60} \\le t_{target}$$
     """)
