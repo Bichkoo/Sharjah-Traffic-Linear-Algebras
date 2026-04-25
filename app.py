@@ -186,19 +186,6 @@ else:
     with col4:
         st.metric("Congestion at Departure", f"{latest['congestion']:.1f}%")
 
-    st.markdown("### 🏆 Alternative: Absolute Minimum Cost")
-    st.markdown("The global minimum: leaving at this time guarantees the shortest possible drive of the day (usually early morning).")
-    col5, col6, col7, col8 = st.columns(4)
-    
-    with col5:
-        st.metric("Optimal Departure", float_to_time_str(optimal['t_dep']), "Shortest overall drive")
-    with col6:
-        st.metric("Estimated Arrival", float_to_time_str(optimal['t_arr']))
-    with col7:
-        st.metric("Total Drive Time", f"{int(optimal['drive_time'])} mins", f"+{int(optimal['drive_time'] - T_base)} mins delay", delta_color="inverse")
-    with col8:
-        st.metric("Congestion at Departure", f"{optimal['congestion']:.1f}%")
-
     # ==========================================
     # VISUALIZATION (PLOTLY)
     # ==========================================
@@ -237,16 +224,6 @@ else:
         marker=dict(color='red', size=14, symbol='star'),
         text=["Latest Safe Departure"],
         textposition="top center"
-    ))
-
-    # Highlight Optimal Departure
-    fig.add_trace(go.Scatter(
-        x=[optimal['t_dep']], y=[optimal['congestion']],
-        mode='markers+text',
-        name='Absolute Min Drive',
-        marker=dict(color='green', size=14, symbol='star'),
-        text=["Absolute Minimum Drive"],
-        textposition="bottom center"
     ))
 
     # Add Target Arrival Time Boundary
