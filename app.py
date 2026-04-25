@@ -59,8 +59,16 @@ def load_and_train_model():
     melted['sin2'] = np.sin(4 * np.pi * melted['Hour'] / 24)
     melted['cos2'] = np.cos(4 * np.pi * melted['Hour'] / 24)
     
-    # Construct Design Matrix X and Target Vector y
+    # Feature Engineering: Categorical Interaction Terms (Crucial for weekend curve shapes!)
     feature_cols = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'sin1', 'cos1', 'sin2', 'cos2']
+    
+    for day in days:
+        for harm in ['sin1', 'cos1', 'sin2', 'cos2']:
+            inter_col = f"{day}_{harm}"
+            melted[inter_col] = melted[day] * melted[harm]
+            feature_cols.append(inter_col)
+    
+    # Construct Design Matrix X and Target Vector y
     X = np.column_stack((np.ones(len(melted)), melted[feature_cols].values)) # Adding Intercept
     y = melted['Congestion'].values
     
@@ -81,9 +89,22 @@ def predict_congestion(day, hour_float):
     cos2 = np.cos(4 * np.pi * hour_float / 24)
     
     x_vec = [1] # Intercept
+    
+    # Base categorical variables
+    day_vals = []
     for d in day_columns:
-        x_vec.append(1 if day == d else 0)
-    x_vec.extend([sin1, cos1, sin2, cos2])
+        val = 1 if day == d else 0
+        x_vec.append(val)
+        day_vals.append(val)
+        
+    # Base harmonics
+    harmonics = [sin1, cos1, sin2, cos2]
+    x_vec.extend(harmonics)
+    
+    # Interaction terms
+    for d_val in day_vals:
+        for h_val in harmonics:
+            x_vec.append(d_val * h_val)
     
     prediction = np.dot(x_vec, beta_vector)
     return max(0, prediction) # Congestion cannot be logically negative
