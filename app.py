@@ -94,7 +94,7 @@ def predict_congestion(day, hour_float):
 # ==========================================
 def float_to_time_str(h_float):
     """Converts a float hour (e.g. 7.5) to a formatted string (07:30 AM)."""
-    h_float = max(0, min(23.99, h_float))
+    h_float = max(0, h_float) # Prevent negative time, allow wrapping past midnight
     hours = int(h_float)
     minutes = int(round((h_float - hours) * 60))
     if minutes == 60:
@@ -173,16 +173,30 @@ else:
     latest = results_df.loc[results_df['t_dep'].idxmax()]
 
     # Metric Cards
-    st.markdown("### 🏆 Prescriptive Outcomes")
+    st.markdown("### 🎯 Recommended: Latest Safe Departure")
+    st.markdown("The maximum boundary constraint: the absolute **latest time you can leave** to satisfy your target arrival deadline.")
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Optimal Departure", float_to_time_str(optimal['t_dep']), "Shortest Drive")
+        st.metric("Latest Departure", float_to_time_str(latest['t_dep']), "Deadline to leave")
     with col2:
-        st.metric("Estimated Arrival", float_to_time_str(optimal['t_arr']))
+        st.metric("Estimated Arrival", float_to_time_str(latest['t_arr']))
     with col3:
-        st.metric("Total Drive Time", f"{int(optimal['drive_time'])} mins", f"+{int(optimal['drive_time'] - T_base)} mins delay", delta_color="inverse")
+        st.metric("Total Drive Time", f"{int(latest['drive_time'])} mins", f"+{int(latest['drive_time'] - T_base)} mins delay", delta_color="inverse")
     with col4:
+        st.metric("Congestion at Departure", f"{latest['congestion']:.1f}%")
+
+    st.markdown("### 🏆 Alternative: Absolute Minimum Cost")
+    st.markdown("The global minimum: leaving at this time guarantees the shortest possible drive of the day (usually early morning).")
+    col5, col6, col7, col8 = st.columns(4)
+    
+    with col5:
+        st.metric("Optimal Departure", float_to_time_str(optimal['t_dep']), "Shortest overall drive")
+    with col6:
+        st.metric("Estimated Arrival", float_to_time_str(optimal['t_arr']))
+    with col7:
+        st.metric("Total Drive Time", f"{int(optimal['drive_time'])} mins", f"+{int(optimal['drive_time'] - T_base)} mins delay", delta_color="inverse")
+    with col8:
         st.metric("Congestion at Departure", f"{optimal['congestion']:.1f}%")
 
     # ==========================================
@@ -215,14 +229,24 @@ else:
         marker=dict(color='rgba(255, 99, 71, 0.6)', size=8)
     ))
 
+    # Highlight Latest Safe Departure
+    fig.add_trace(go.Scatter(
+        x=[latest['t_dep']], y=[latest['congestion']],
+        mode='markers+text',
+        name='Latest Safe Departure',
+        marker=dict(color='red', size=14, symbol='star'),
+        text=["Latest Safe Departure"],
+        textposition="top center"
+    ))
+
     # Highlight Optimal Departure
     fig.add_trace(go.Scatter(
         x=[optimal['t_dep']], y=[optimal['congestion']],
         mode='markers+text',
-        name='Optimal Departure',
+        name='Absolute Min Drive',
         marker=dict(color='green', size=14, symbol='star'),
-        text=["Optimal Departure"],
-        textposition="top center"
+        text=["Absolute Minimum Drive"],
+        textposition="bottom center"
     ))
 
     # Add Target Arrival Time Boundary
